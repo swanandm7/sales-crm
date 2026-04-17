@@ -1,0 +1,163 @@
+import { useState, useEffect } from 'react';
+import { Search, Plus, Info, Clock, User, LogOut, X } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../contexts/PermissionsContext';
+import { useTimer } from '../../hooks/useTimer';
+import { OrganizationSwitcher } from '../admin/OrganizationSwitcher';
+import { supabase } from '../../lib/supabase';
+
+interface HeaderProps {
+  onAddLead: () => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  onSearch: () => void;
+  onClearSearch: () => void;
+}
+
+export function Header({ onAddLead, searchQuery, onSearchChange, onSearch, onClearSearch }: HeaderProps) {
+  const { profile, signOut } = useAuth();
+  const { userProfile, isSuperAdmin } = usePermissions();
+  const { formattedTime, endSession } = useTimer(profile?.id);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null);
+
+  const roleName = userProfile?.role?.role_name || profile?.role?.replace('_', ' ') || 'User';
+
+  useEffect(() => {
+    if (userProfile?.id) {
+      loadCurrentOrganization();
+    }
+  }, [userProfile?.id]);
+
+  const loadCurrentOrganization = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', userProfile?.id)
+        .single();
+
+      if (error) throw error;
+      setCurrentOrgId(data?.organization_id || null);
+    } catch (error) {
+      console.error('Error loading organization:', error);
+    }
+  };
+
+  const handleOrgChange = async (orgId: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ organization_id: orgId })
+        .eq('id', userProfile?.id);
+
+      if (error) throw error;
+      setCurrentOrgId(orgId);
+
+      // Reload the page to refresh all data in the new organization context
+      window.location.reload();
+    } catch (error) {
+      console.error('Error switching organization:', error);
+      alert('Failed to switch organization');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      onSearch();
+    }
+  };
+
+  return (
+    <header className="bg-slate-700 text-white px-6 py-3 flex items-center justify-between">
+      <div className="flex items-center gap-4 flex-1">
+        <div className="relative flex-1 max-w-xl">
+          <div className="flex items-center gap-2 bg-slate-600 rounded-lg px-4 py-2">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search by name, mobile, or email"
+              className="flex-1 bg-transparent text-sm text-white placeholder-slate-400 outline-none"
+            />
+            {searchQuery && (
+              <button
+                onClick={onClearSearch}
+                className="p-1 hover:bg-slate-500 rounded transition"
+                title="Clear search"
+              >
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+            )}
+            <button
+              onClick={onSearch}
+              className="p-1 hover:bg-slate-500 rounded transition"
+              title="Search"
+            >
+              <Search className="w-4 h-4 text-slate-400" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        {isSuperAdmin && currentOrgId && (
+          <OrganizationSwitcher
+            currentOrgId={currentOrgId}
+            onOrgChange={handleOrgChange}
+          />
+        )}
+
+        <button
+          onClick={onAddLead}
+          className="p-2 hover:bg-slate-600 rounded-lg transition"
+          title="Add New Lead"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+
+        <button className="p-2 hover:bg-slate-600 rounded-lg transition" title="Information">
+          <Info className="w-5 h-5" />
+        </button>
+
+        <div className="flex items-center gap-2 text-sm">
+          <Clock className="w-4 h-4" />
+          <span className="font-mono">{formattedTime}</span>
+        </div>
+
+        <div className="relative">
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="flex items-center gap-2 p-2 hover:bg-slate-600 rounded-lg transition"
+          >
+            <div className="w-8 h-8 bg-slate-500 rounded-full flex items-center justify-center">
+              <User className="w-5 h-5" />
+            </div>
+          </button>
+
+          {showUserMenu && (
+            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl py-2 z-50">
+              <div className="px-4 py-3 border-b border-slate-200">
+                <p className="text-sm font-medium text-slate-800">{profile?.full_name}</p>
+                <p className="text-xs text-slate-500">{profile?.email}</p>
+                <p className="text-xs text-orange-600 mt-1">{roleName}</p>
+              </div>
+              <button
+                onClick={async () => {
+                  setShowUserMenu(false);
+                  await endSession();
+                  signOut();
+                }}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
