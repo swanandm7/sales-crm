@@ -3,6 +3,7 @@ import { usePermissions } from '../contexts/PermissionsContext';
 import { LoginPage } from './auth/LoginPage';
 import { FirstLoginSetup } from './auth/FirstLoginSetup';
 import { InvitationAcceptance } from './auth/InvitationAcceptance';
+import { ResetPasswordPage } from './auth/ResetPasswordPage';
 import { Building2, LogOut } from 'lucide-react';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,11 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent"></div>
       </div>
     );
+  }
+
+  const isResetPasswordPath = window.location.pathname === '/reset-password';
+  if (isResetPasswordPath) {
+    return <ResetPasswordPage />;
   }
 
   // Invitation links must take precedence over any existing session.
