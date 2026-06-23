@@ -15,44 +15,29 @@ import { PrimaryButton } from '../../mobile/components/design';
 import { useAuth } from '../../mobile/contexts/AuthContext';
 import { useMobilePreferences } from '../../mobile/contexts/MobilePreferencesContext';
 
-export default function LoginScreen() {
+export default function SignupScreen() {
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signIn, resetPassword } = useAuth();
+  const { signUp } = useAuth();
   const { theme } = useMobilePreferences();
   const router = useRouter();
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Missing details', 'Please enter both email and password.');
+  const handleSignup = async () => {
+    if (!fullName || !email || !password) {
+      Alert.alert('Missing details', 'Please enter your name, email, and password.');
       return;
     }
 
     setLoading(true);
     try {
-      await signIn(email.trim(), password);
-      router.replace('/(tabs)');
+      await signUp(email.trim(), password, fullName.trim());
+      Alert.alert('Success', 'Account created successfully! You can now log in.');
+      router.replace('/(auth)/login');
     } catch (error: any) {
-      Alert.alert('Login failed', error.message || 'Invalid credentials');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    if (!email) {
-      Alert.alert('Missing email', 'Please enter your email address first to reset your password.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await resetPassword(email.trim());
-      Alert.alert('Check your email', 'We have sent you a password reset link.');
-    } catch (error: any) {
-      Alert.alert('Reset failed', error.message || 'Could not send reset email');
+      Alert.alert('Signup failed', error.message || 'Could not create account');
     } finally {
       setLoading(false);
     }
@@ -76,7 +61,7 @@ export default function LoginScreen() {
           }}
         />
 
-        <View style={{ alignItems: 'center', marginTop: 28, marginBottom: 48 }}>
+        <View style={{ alignItems: 'center', marginTop: 28, marginBottom: 24 }}>
           <Text style={{ color: theme.accent, fontSize: 36, fontWeight: '900', letterSpacing: -1.4 }}>
             degreebaba
           </Text>
@@ -87,11 +72,31 @@ export default function LoginScreen() {
 
         <View>
           <Text style={{ color: theme.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.4 }}>
-            Welcome back
+            Create Account
           </Text>
           <Text style={{ color: theme.textDim, fontSize: 13, marginTop: 5, marginBottom: 24 }}>
-            Sign in to your account
+            Sign up to get started
           </Text>
+
+          <Text style={{ color: theme.textDim, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>Full Name</Text>
+          <TextInput
+            style={{
+              height: 52,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              backgroundColor: theme.surface,
+              borderWidth: 1,
+              borderColor: theme.border,
+              color: theme.text,
+              fontSize: 15,
+              marginBottom: 14,
+            }}
+            placeholder="John Doe"
+            placeholderTextColor={theme.textMute}
+            value={fullName}
+            onChangeText={setFullName}
+            editable={!loading}
+          />
 
           <Text style={{ color: theme.textDim, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>Email</Text>
           <TextInput
@@ -116,7 +121,7 @@ export default function LoginScreen() {
           />
 
           <Text style={{ color: theme.textDim, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>Password</Text>
-          <View style={{ position: 'relative' }}>
+          <View style={{ position: 'relative', marginBottom: 24 }}>
             <TextInput
               style={{
                 height: 52,
@@ -128,9 +133,8 @@ export default function LoginScreen() {
                 borderColor: theme.border,
                 color: theme.text,
                 fontSize: 15,
-                marginBottom: 10,
               }}
-              placeholder="Enter your password"
+              placeholder="Create a password"
               placeholderTextColor={theme.textMute}
               value={password}
               onChangeText={setPassword}
@@ -145,30 +149,20 @@ export default function LoginScreen() {
             </Pressable>
           </View>
 
-          <TouchableOpacity style={{ alignItems: 'flex-end', marginBottom: 18 }} onPress={handleForgotPassword}>
-            <Text style={{ color: theme.accent, fontSize: 12.5, fontWeight: '800' }}>
-              Forgot password?
-            </Text>
-          </TouchableOpacity>
-
           <PrimaryButton
-            label={loading ? 'Signing in...' : 'Sign in'}
+            label={loading ? 'Creating account...' : 'Sign up'}
             theme={theme}
-            onPress={handleLogin}
+            onPress={handleSignup}
             disabled={loading}
             style={{ minHeight: 56, borderRadius: 14 }}
           />
 
           <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 24 }}>
-            <Text style={{ color: theme.textDim, fontSize: 14 }}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
-              <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '700' }}>Sign up</Text>
+            <Text style={{ color: theme.textDim, fontSize: 14 }}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
+              <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '700' }}>Sign in</Text>
             </TouchableOpacity>
           </View>
-
-          <Text style={{ color: theme.textMute, textAlign: 'center', fontSize: 11, fontWeight: '700', marginTop: 14 }}>
-            v2.4.1 · Secure login
-          </Text>
         </View>
       </View>
     </KeyboardAvoidingView>

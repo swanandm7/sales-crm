@@ -24,6 +24,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string) => Promise<any>;
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -33,6 +35,8 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   loading: true,
   signIn: async () => {},
+  signUp: async () => {},
+  resetPassword: async () => {},
   signOut: async () => {},
 });
 
@@ -128,6 +132,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) throw error;
   };
 
+  const signUp = async (email: string, password: string, fullName: string) => {
+    const { data, error } = await mobileSupabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  const resetPassword = async (email: string) => {
+    const { error } = await mobileSupabase.auth.resetPasswordForEmail(email);
+    if (error) throw error;
+  };
+
   const signOut = async () => {
     const { error } = await mobileSupabase.auth.signOut();
     if (error) throw error;
@@ -144,6 +167,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         session,
         loading,
         signIn,
+        signUp,
+        resetPassword,
         signOut,
       }}
     >

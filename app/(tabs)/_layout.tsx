@@ -1,9 +1,11 @@
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bell, Home, User, Users } from '../../mobile/components/icons';
 import { useMobilePreferences } from '../../mobile/contexts/MobilePreferencesContext';
 
 export default function TabLayout() {
   const { preferences, theme } = useMobilePreferences();
+  const insets = useSafeAreaInsets();
   const showLabels = preferences.bottomNavStyle !== 'icons';
   const pill = preferences.bottomNavStyle === 'pill';
 
@@ -23,11 +25,11 @@ export default function TabLayout() {
           backgroundColor: theme.tabBar,
           borderTopColor: theme.border,
           borderTopWidth: 1,
-          paddingBottom: 8,
+          paddingBottom: pill ? 8 : Math.max(insets.bottom, 8),
           paddingTop: 8,
-          height: showLabels ? 66 : 58,
+          height: showLabels ? 66 + (pill ? 0 : insets.bottom) : 58 + (pill ? 0 : insets.bottom),
           marginHorizontal: pill ? 16 : 0,
-          marginBottom: pill ? 14 : 0,
+          marginBottom: pill ? Math.max(insets.bottom, 14) : 0,
           borderRadius: pill ? 24 : 0,
           position: pill ? 'absolute' : 'relative',
         },

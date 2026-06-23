@@ -1,10 +1,10 @@
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import '../global.css';
 import { AuthProvider, useAuth } from '../mobile/contexts/AuthContext'
-import { MobilePreferencesProvider } from '../mobile/contexts/MobilePreferencesContext';
+import { MobilePreferencesProvider, useMobilePreferences } from '../mobile/contexts/MobilePreferencesContext';
 import { useFrameworkReady } from '../hooks/useFrameworkReady';
 
 function RootLayoutNav() {
@@ -26,7 +26,13 @@ function RootLayoutNav() {
     }
   }, [isWeb, user, loading, segments]);
 
-  return <Slot />;
+  const { theme } = useMobilePreferences();
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }} edges={['top']}>
+      <Slot />
+    </SafeAreaView>
+  );
 }
 
 export default function RootLayout() {
