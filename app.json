@@ -1,6 +1,7 @@
 {
   "expo": {
     "name": "CRM Mobile",
+    "privacy": "public",
     "slug": "crm-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,6 +18,9 @@
       "permissions": [
         "android.permission.CALL_PHONE",
         "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.CALL_PHONE",
+        "android.permission.READ_CONTACTS",
         "android.permission.WRITE_CONTACTS"
       ]
     },
@@ -31,6 +35,19 @@
     "scheme": "crmapp",
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d1f737cf-0dbb-4612-86a2-0dd0266ce189"
+      }
+    },
+    "owner": "degreebaba",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d1f737cf-0dbb-4612-86a2-0dd0266ce189"
     }
   }
 }
