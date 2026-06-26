@@ -178,10 +178,29 @@ export function AddEditUserModal({ user, roles, teams, organizationId, onClose, 
           return;
         }
 
+        const emailToInvite = formData.email.toLowerCase().trim();
+
+        // Check if user already exists in the system
+        const { data: existingUser, error: checkError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', emailToInvite)
+          .maybeSingle();
+
+        if (checkError) {
+          throw checkError;
+        }
+
+        if (existingUser) {
+          showError('A user with this email already exists');
+          setLoading(false);
+          return;
+        }
+
         const { data: invitationData, error: inviteError } = await supabase
           .from('invitations')
           .insert({
-            email: formData.email.toLowerCase().trim(),
+            email: emailToInvite,
             role_id: formData.role_id,
             invited_by: (await supabase.auth.getUser()).data.user?.id,
             organization_id: formData.organization_id || null,
@@ -191,14 +210,14 @@ export function AddEditUserModal({ user, roles, teams, organizationId, onClose, 
 
         if (inviteError) {
           if (inviteError.code === '23505') {
-            throw new Error('An invitation for this email already exists or user already exists');
+            throw new Error('An invitation for this email already exists');
           }
           throw inviteError;
         }
 
         const invitationLink = buildInvitationLink(invitationData.token);
 
-        await supabase.from('email_queue').insert({
+        const { error: emailError } = await supabase.from('email_queue').insert({
           organization_id: formData.organization_id || null,
           to_email: formData.email.toLowerCase().trim(),
           subject: 'You have been invited to join the team',
@@ -212,6 +231,10 @@ export function AddEditUserModal({ user, roles, teams, organizationId, onClose, 
           body_text: `You have been invited to join the organization. Visit this link to accept: ${invitationLink}\n\nThis invitation will expire in 48 hours.`,
           priority: 8,
         });
+
+        if (emailError) {
+          throw new Error('Failed to queue invitation email: ' + emailError.message);
+        }
 
         await supabase.from('audit_log').insert({
           actor_user_id: (await supabase.auth.getUser()).data.user?.id,

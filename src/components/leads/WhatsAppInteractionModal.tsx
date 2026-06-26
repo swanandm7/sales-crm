@@ -52,8 +52,8 @@ export function WhatsAppInteractionModal({
         interaction_notes: null,
         interaction_metadata: {
           message: personalizedContent.body,
-          template_id: template.id,
-          template_name: template.template_name,
+          template_id: template.id === 'custom-blank-template' ? null : template.id,
+          template_name: template.id === 'custom-blank-template' ? 'Custom WhatsApp' : template.template_name,
         },
       });
 
@@ -70,14 +70,16 @@ export function WhatsAppInteractionModal({
         personalizedContent.body
       );
 
-      await supabase.from('message_template_usage_log').insert({
-        template_id: template.id,
-        lead_id: leadId,
-        user_id: user.id,
-        template_content_used: template.body_content,
-        actual_content_sent: personalizedContent.body,
-        was_edited: false,
-      });
+      if (template.id !== 'custom-blank-template') {
+        await supabase.from('message_template_usage_log').insert({
+          template_id: template.id,
+          lead_id: leadId,
+          user_id: user.id,
+          template_content_used: template.body_content,
+          actual_content_sent: personalizedContent.body,
+          was_edited: false,
+        });
+      }
 
       setLoading(false);
       onSuccess();

@@ -46,30 +46,14 @@ export function InvitationAcceptance() {
 
   const loadInvitation = async (inviteToken: string) => {
     try {
-      // First try to find by ID (which is what the invitation link uses)
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from('invitations')
         .select(`
           *,
           roles(role_name)
         `)
-        .eq('id', inviteToken)
+        .eq('token', inviteToken)
         .maybeSingle();
-
-      // If not found by ID, try by token field
-      if (!data && !error) {
-        const result = await supabase
-          .from('invitations')
-          .select(`
-            *,
-            roles(role_name)
-          `)
-          .eq('token', inviteToken)
-          .maybeSingle();
-
-        data = result.data;
-        error = result.error;
-      }
 
       if (error) {
         console.error('Error loading invitation:', error);
@@ -94,7 +78,7 @@ export function InvitationAcceptance() {
         await supabase
           .from('invitations')
           .update({ status: 'expired' })
-          .eq('id', inviteToken);
+          .eq('id', data.id);
 
         setError('This invitation has expired');
         setLoading(false);

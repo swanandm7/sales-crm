@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Linking,
   RefreshControl,
@@ -82,6 +83,7 @@ function LeadCard({
   density: 'comfortable' | 'compact';
   theme: ReturnType<typeof useMobilePreferences>['theme'];
 }) {
+  const router = useRouter();
   const compact = density === 'compact';
   const statusColor = item.status_color || theme.accent;
 
@@ -119,16 +121,22 @@ function LeadCard({
                 {item.status_name || 'Unstaged'}
               </Text>
             </View>
-            <Text style={{ color: theme.textMute, fontSize: 11, fontWeight: '700' }}>· {item.call_count} calls</Text>
+            <Text style={{ color: theme.textMute, fontSize: 11, fontWeight: '700' }}>
+              · 📞 {item.total_dials || item.call_count} 
+              {(item.connected_calls ?? 0) > 0 && ` ✅ ${item.connected_calls}`}
+            </Text>
             <Text style={{ color: theme.textMute, fontSize: 11, flex: 1 }} numberOfLines={1}>
-              · {item.last_updated ? 'updated' : 'new'}
+              · {item.last_called_at ? 'called' : (item.last_updated ? 'updated' : 'new')}
             </Text>
           </View>
         </View>
         <TouchableOpacity
           onPress={(event) => {
             event.stopPropagation();
-            if (item.mobile_number) Linking.openURL(`tel:${item.mobile_number}`);
+            if (item.mobile_number) {
+              const targetId = item.lead_id || (item as any).id;
+              router.push(`/lead/${targetId}?autoCall=true`);
+            }
           }}
           style={{
             width: compact ? 32 : 36,
@@ -179,14 +187,22 @@ export default function LeadsScreen() {
     ? leads
     : leads.filter((lead) => (lead.status_id || 'unstaged') === statusFilter);
 
+  // Issue #17 fix: Track request version to ignore stale responses from fast typing
+  const searchVersionRef = React.useRef(0);
+
   const loadLeads = async (query = searchQuery, nextFilters = filters) => {
     if (!profile?.organization_id) return;
+    const currentVersion = ++searchVersionRef.current;
     try {
       const data = await searchLeads(profile.organization_id, query, nextFilters);
+      // Discard stale response if a newer search has already been issued
+      if (searchVersionRef.current !== currentVersion) return;
       setLeads(data);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (searchVersionRef.current === currentVersion) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -259,7 +275,12 @@ export default function LeadsScreen() {
             >
               <SlidersHorizontal size={16} color={activeFilterCount > 0 ? theme.accent : theme.textDim} />
             </TouchableOpacity>
-            <View
+            <TouchableOpacity
+              onPress={() => Alert.alert(
+                'Add Lead',
+                'Adding leads from mobile is coming soon. Please use the web dashboard to add new leads.',
+                [{ text: 'OK' }]
+              )}
               style={{
                 width: 38,
                 height: 38,
@@ -270,7 +291,7 @@ export default function LeadsScreen() {
               }}
             >
               <Text style={{ color: theme.onAccent, fontSize: 22, fontWeight: '700', lineHeight: 24 }}>+</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -381,7 +402,7 @@ export default function LeadsScreen() {
             item={item}
             theme={theme}
             density={preferences.leadCardDensity}
-            onOpen={() => router.push(`/lead/${item.lead_id}`)}
+            onOpen={() => router.push(`/lead/${item.lead_id || (item as any).id}`)}
           />
         )}
         keyExtractor={(item) => item.lead_id}

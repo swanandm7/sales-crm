@@ -15,7 +15,7 @@ import type {
   MobileLeadFilterOptions,
   MobileLeadFilters,
   MobileQueueLead,
-  QuickOutcomeKey,
+  NativeCallOutcome,
   QuickUpdateInput,
   StatusOption,
   TeamSummary,
@@ -28,8 +28,8 @@ type QuickOutcomeDefinition = {
   followupMinutes?: number;
 };
 
-export const QUICK_OUTCOMES: Record<QuickOutcomeKey, QuickOutcomeDefinition> = {
-  no_answer: {
+export const QUICK_OUTCOMES: Record<NativeCallOutcome, QuickOutcomeDefinition> = {
+  not_connected_no_answer: {
     label: 'No Answer',
     statusName: 'no_response',
     subStatusName: 'no_response_ringing',
@@ -39,7 +39,17 @@ export const QUICK_OUTCOMES: Record<QuickOutcomeKey, QuickOutcomeDefinition> = {
     statusName: 'interested',
     subStatusName: 'interested_hot',
   },
-  callback: {
+  not_connected_busy: {
+    label: 'Busy',
+    statusName: 'no_response',
+    subStatusName: 'new_lead_not_reachable',
+  },
+  not_connected_switched_off: {
+    label: 'Switched Off',
+    statusName: 'no_response',
+    subStatusName: 'new_lead_switched_off',
+  },
+  callback_requested: {
     label: 'Callback',
     statusName: 'followup',
     subStatusName: 'followup_call_back',
@@ -49,16 +59,6 @@ export const QUICK_OUTCOMES: Record<QuickOutcomeKey, QuickOutcomeDefinition> = {
     label: 'Wrong Number',
     statusName: 'junk',
     subStatusName: 'junk_invalid_number',
-  },
-  converted: {
-    label: 'Converted',
-    statusName: 'registration_done',
-    subStatusName: 'registration_fee_paid',
-  },
-  junk: {
-    label: 'Junk',
-    statusName: 'junk',
-    subStatusName: 'junk_bad_lead_quality',
   },
 };
 
@@ -258,10 +258,18 @@ export async function getTeamSummary(): Promise<TeamSummary | null> {
 
 export async function getDashboardSummary(
   organizationId: string,
-  userId: string
+  userId: string,
+  period: 'today' | 'week' | 'month' = 'week'
 ): Promise<MobileDashboardSummary> {
   const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  // Compute the "since" cutoff based on period (Issue #25 fix)
+  const periodMs = period === 'today'
+    ? 24 * 60 * 60 * 1000
+    : period === 'week'
+    ? 7 * 24 * 60 * 60 * 1000
+    : 30 * 24 * 60 * 60 * 1000;
+  const sinceDate = new Date(Date.now() - periodMs).toISOString();
 
   const [ownedLeadsRes, recentUpdatesRes, ownedLeadIdsRes] = await Promise.all([
     supabase
@@ -274,7 +282,7 @@ export async function getDashboardSummary(
       .select('id', { count: 'exact', head: true })
       .eq('organization_id', organizationId)
       .eq('current_lead_owner', userId)
-      .gte('updated_at', yesterday),
+      .gte('updated_at', sinceDate),
     supabase
       .from('leads')
       .select('id')
@@ -352,6 +360,10 @@ export async function getLeadDetails(leadId: string, organizationId: string) {
       current_lead_owner,
       created_at,
       updated_at,
+      total_dials,
+      connected_calls,
+      last_called_at,
+      last_call_outcome,
       lead_statuses!leads_status_id_fkey(display_name, color),
       sub_status:lead_statuses!leads_sub_status_id_fkey(display_name, color),
       owner:profiles!leads_current_lead_owner_fkey(full_name)
@@ -389,6 +401,10 @@ export async function searchLeads(
       sub_status_id,
       current_lead_owner,
       updated_at,
+      total_dials,
+      connected_calls,
+      last_called_at,
+      last_call_outcome,
       lead_statuses!leads_status_id_fkey(display_name, color),
       sub_status:lead_statuses!leads_sub_status_id_fkey(display_name),
       owner:profiles!leads_current_lead_owner_fkey(full_name)
@@ -434,10 +450,19 @@ export async function searchLeads(
     followup_status: null,
     is_overdue: false,
     last_updated: lead.updated_at,
+    total_dials: lead.total_dials ?? 0,
+    connected_calls: lead.connected_calls ?? 0,
+    last_called_at: lead.last_called_at ?? null,
+    last_call_outcome: lead.last_call_outcome ?? null,
   })) as MobileQueueLead[];
 }
 
-export async function getFollowups(organizationId: string, filter: 'all' | 'today' | 'pending') {
+export async function getFollowups(
+  organizationId: string,
+  userId: string,
+  filter: 'all' | 'today' | 'pending'
+) {
+  // Filter by user_id so reps only see their own follow-ups (Issue #5 fix)
   let query = supabase
     .from('followups')
     .select(`
@@ -450,6 +475,7 @@ export async function getFollowups(organizationId: string, filter: 'all' | 'toda
       lead:leads(name, mobile_number)
     `)
     .eq('organization_id', organizationId)
+    .eq('user_id', userId)
     .order('next_action_date', { ascending: true })
     .order('next_action_time', { ascending: true });
 
@@ -483,11 +509,30 @@ export async function markFollowupComplete(followupId: string) {
 
 export function resolveQuickOutcome(
   statuses: StatusOption[],
-  outcome: QuickOutcomeKey
+  outcome: NativeCallOutcome
 ): { statusId: string | null; subStatusId: string | null; defaultFollowupAt: string | null } {
   const definition = QUICK_OUTCOMES[outcome];
-  const mainStatus = statuses.find((status) => status.name === definition.statusName);
-  const subStatus = statuses.find((status) => status.name === definition.subStatusName);
+
+  // Try exact match first, then case-insensitive, then partial match
+  function findStatus(targetName: string) {
+    const lower = targetName.toLowerCase();
+    return (
+      statuses.find((s) => s.name === targetName) ||
+      statuses.find((s) => s.name?.toLowerCase() === lower) ||
+      statuses.find((s) => s.name?.toLowerCase().includes(lower)) ||
+      statuses.find((s) => s.display_name?.toLowerCase().includes(lower))
+    );
+  }
+
+  const mainStatus = findStatus(definition.statusName);
+  const subStatus = findStatus(definition.subStatusName);
+
+  if (!mainStatus) {
+    console.warn(`[resolveQuickOutcome] No status found for "${definition.statusName}" (outcome: ${outcome}). Available:`, statuses.map((s) => s.name).join(', '));
+  }
+  if (!subStatus) {
+    console.warn(`[resolveQuickOutcome] No sub-status found for "${definition.subStatusName}" (outcome: ${outcome}). Available:`, statuses.map((s) => s.name).join(', '));
+  }
 
   const defaultFollowupAt = definition.followupMinutes
     ? new Date(Date.now() + definition.followupMinutes * 60_000).toISOString()
@@ -501,14 +546,31 @@ export function resolveQuickOutcome(
 }
 
 export async function quickUpdateLead(userId: string, input: QuickUpdateInput): Promise<{ queuedOffline: boolean }> {
-  const { error } = await supabase.rpc('mobile_quick_update_lead', {
-    p_lead_id: input.leadId,
-    p_status_id: input.statusId ?? null,
-    p_sub_status_id: input.subStatusId ?? null,
-    p_note: input.note ?? null,
-    p_next_followup_at: input.nextFollowupAt ?? null,
-    p_disposition: input.disposition ?? null,
-  });
+  let error;
+  if (input.disposition === 'manual_update') {
+    const res = await supabase.rpc('mobile_quick_update_lead', {
+      p_lead_id: input.leadId,
+      p_status_id: input.statusId ?? null,
+      p_sub_status_id: input.subStatusId ?? null,
+      p_note: input.note ?? null,
+      p_next_followup_at: input.nextFollowupAt ?? null,
+      p_disposition: input.disposition ?? null,
+    });
+    error = res.error;
+  } else {
+    // It's a real call outcome
+    const res = await supabase.rpc('mobile_log_call_outcome', {
+      p_lead_id: input.leadId,
+      p_outcome: input.disposition,
+      p_talk_time_secs: input.talkTimeSecs ?? null,
+      p_notes: input.note ?? null,
+      p_next_followup: input.nextFollowupAt ?? null,
+      p_called_at: input.calledAt ?? null,
+      p_status_id: input.statusId ?? null,
+      p_sub_status_id: input.subStatusId ?? null,
+    });
+    error = res.error;
+  }
 
   if (error) {
     if (shouldQueueOffline(error)) {
@@ -522,27 +584,41 @@ export async function quickUpdateLead(userId: string, input: QuickUpdateInput): 
   return { queuedOffline: false };
 }
 
-export async function flushPendingQuickUpdates(userId: string): Promise<number> {
+export async function flushPendingQuickUpdates(userId: string): Promise<{
+  flushedCount: number;
+  remainingCount: number;
+  errors: string[];
+}> {
   const pending = await listPendingQuickUpdates(userId);
   if (pending.length === 0) {
-    return 0;
+    return { flushedCount: 0, remainingCount: 0, errors: [] };
   }
 
   const remaining = [];
+  const errors: string[] = [];
   let flushedCount = 0;
 
   for (const update of pending) {
-    const { error } = await supabase.rpc('mobile_quick_update_lead', {
+    const { error } = await supabase.rpc('mobile_log_call_outcome', {
       p_lead_id: update.leadId,
-      p_status_id: update.statusId ?? null,
-      p_sub_status_id: update.subStatusId ?? null,
-      p_note: update.note ?? null,
-      p_next_followup_at: update.nextFollowupAt ?? null,
-      p_disposition: update.disposition ?? null,
+      p_outcome: update.disposition,
+      p_talk_time_secs: update.talkTimeSecs ?? null,
+      p_notes: update.note ?? null,
+      p_next_followup: update.nextFollowupAt ?? null,
+      p_called_at: update.calledAt ?? null,
     });
 
     if (error) {
-      remaining.push(update);
+      // Issue #22 fix: Track errors instead of silently swallowing them
+      const msg = error.message || 'Unknown error';
+      errors.push(`Lead ${update.leadId}: ${msg}`);
+      // Only keep in queue if it's a network error (retriable)
+      if (shouldQueueOffline(error)) {
+        remaining.push(update);
+      } else {
+        // Non-retriable error (e.g. lead deleted, permissions) — discard after logging
+        console.warn('[flushPendingQuickUpdates] Discarding non-retriable update:', update.leadId, msg);
+      }
     } else {
       flushedCount += 1;
     }
@@ -554,5 +630,33 @@ export async function flushPendingQuickUpdates(userId: string): Promise<number> 
     await replacePendingQuickUpdates(userId, remaining);
   }
 
-  return flushedCount;
+  return { flushedCount, remainingCount: remaining.length, errors };
+}
+
+export async function getAgentCallSummary(
+  organizationId: string,
+  userId: string,
+  period: 'today' | 'week' | 'month' = 'week'
+) {
+  const periodMs = period === 'today'
+    ? 24 * 60 * 60 * 1000
+    : period === 'week'
+    ? 7 * 24 * 60 * 60 * 1000
+    : 30 * 24 * 60 * 60 * 1000;
+  const sinceDate = period === 'today' 
+    ? new Date(new Date().setHours(0,0,0,0)).toISOString() 
+    : new Date(Date.now() - periodMs).toISOString();
+
+  const { data, error } = await supabase.rpc('get_agent_call_summary', {
+    p_organization_id: organizationId,
+    p_agent_id: userId,
+    p_from_date: sinceDate,
+  });
+
+  if (error) {
+    console.error('Error fetching call summary', error);
+    return null;
+  }
+
+  return data?.[0] || null;
 }

@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { logEmailSent } from '../../services/activityLogger';
-import { openEmailClient } from '../../lib/communicationUtils';
+import { openEmailClient } from '../../lib/communicationUtils'; // Kept for reference or other uses if needed
 import { TemplateSelectionModal } from '../common/TemplateSelectionModal';
 
 interface EmailInteractionModalProps {
@@ -25,7 +25,7 @@ export function EmailInteractionModal({
   onSuccess,
 }: EmailInteractionModalProps) {
   const { user } = useAuth();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const [loading, setLoading] = useState(false);
 
   async function handleTemplateConfirm(
@@ -36,18 +36,32 @@ export function EmailInteractionModal({
 
     setLoading(true);
 
-    const success = openEmailClient(
-      leadEmail,
-      personalizedContent.subject || '',
-      personalizedContent.body
-    );
-
-    if (success) {
+    try {
       const { data: lead } = await supabase
         .from('leads')
         .select('organization_id')
         .eq('id', leadId)
         .single();
+
+      if (!lead?.organization_id) {
+        throw new Error('Organization not found for this lead.');
+      }
+
+      const bodyHtml = `<p>${personalizedContent.body.replace(/\n/g, '<br/>')}</p>`;
+
+      const { error: queueError } = await supabase.from('email_queue').insert({
+        organization_id: lead.organization_id,
+        to_email: leadEmail,
+        subject: personalizedContent.subject || 'No Subject',
+        body_text: personalizedContent.body,
+        body_html: bodyHtml,
+        template_id: null, // Avoid FK violation since these are message_templates, not system email_templates
+        status: 'pending'
+      });
+
+      if (queueError) {
+        throw queueError;
+      }
 
       await supabase.from('lead_interactions').insert({
         lead_id: leadId,
@@ -57,8 +71,8 @@ export function EmailInteractionModal({
         interaction_metadata: {
           subject: personalizedContent.subject,
           message: personalizedContent.body,
-          template_id: template.id,
-          template_name: template.template_name,
+          template_id: template.id === 'custom-blank-template' ? null : template.id,
+          template_name: template.id === 'custom-blank-template' ? 'Custom Email' : template.template_name,
         },
       });
 
@@ -76,21 +90,25 @@ export function EmailInteractionModal({
         personalizedContent.body
       );
 
-      await supabase.from('message_template_usage_log').insert({
-        template_id: template.id,
-        lead_id: leadId,
-        user_id: user.id,
-        template_content_used: `${template.subject || ''}\n\n${template.body_content}`,
-        actual_content_sent: `${personalizedContent.subject || ''}\n\n${personalizedContent.body}`,
-        was_edited: false,
-      });
+      if (template.id !== 'custom-blank-template') {
+        await supabase.from('message_template_usage_log').insert({
+          template_id: template.id,
+          lead_id: leadId,
+          user_id: user.id,
+          template_content_used: `${template.subject || ''}\n\n${template.body_content}`,
+          actual_content_sent: `${personalizedContent.subject || ''}\n\n${personalizedContent.body}`,
+          was_edited: false,
+        });
+      }
 
       setLoading(false);
+      showSuccess('Email queued successfully!');
       onSuccess();
       onClose();
-    } else {
+    } catch (err: any) {
+      console.error('Error queuing email:', err);
       setLoading(false);
-      showError('Failed to open email client. Please check the email address and try again.');
+      showError('Failed to queue email. Please try again.');
     }
   }
 
@@ -100,8 +118,13 @@ export function EmailInteractionModal({
       leadData={leadData}
       onClose={onClose}
       onConfirm={handleTemplateConfirm}
-      title={`Send Email - ${leadName}`}
-      confirmButtonText="Open Email Client"
+      title={
+        <div className="flex flex-col">
+          <span>Send Email - {leadName}</span>
+          <span className="text-sm font-normal text-slate-500 mt-1">To: {leadEmail}</span>
+        </div>
+      }
+      confirmButtonText="Send Email"
     />
   );
 }

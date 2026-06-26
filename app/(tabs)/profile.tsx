@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Building2, LogOut, Mail, Phone, Shield, User } from '../../mobile/components/icons';
+import { Building2, LogOut, Mail, Phone, Shield, User, Lock } from '../../mobile/components/icons';
 import { Avatar, Card, PrimaryButton } from '../../mobile/components/design';
 import { useAuth } from '../../mobile/contexts/AuthContext';
 import {
   type MobileThemeKey,
   useMobilePreferences,
 } from '../../mobile/contexts/MobilePreferencesContext';
-import { getDashboardSummary } from '../../mobile/lib/leadQueue';
+import { getDashboardSummary, getAgentCallSummary } from '../../mobile/lib/leadQueue';
 import type { MobileDashboardSummary } from '../../mobile/lib/types';
 
 type PeriodKey = 'today' | 'week' | 'month';
@@ -19,13 +19,19 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [period, setPeriod] = useState<PeriodKey>('week');
   const [summary, setSummary] = useState<MobileDashboardSummary | null>(null);
+  const [callSummary, setCallSummary] = useState<any>(null);
 
   useEffect(() => {
     if (!profile?.organization_id || !user?.id) return;
-    getDashboardSummary(profile.organization_id, user.id)
+    // Issue #25 fix: Re-fetch when period changes so stats actually update
+    getDashboardSummary(profile.organization_id, user.id, period)
       .then(setSummary)
       .catch(() => setSummary(null));
-  }, [profile?.organization_id, user?.id]);
+
+    getAgentCallSummary(profile.organization_id, user.id, period)
+      .then(setCallSummary)
+      .catch(() => setCallSummary(null));
+  }, [profile?.organization_id, user?.id, period]);
 
   const handleSignOut = async () => {
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
@@ -96,6 +102,8 @@ export default function ProfileScreen() {
 
   const periodPending = summary?.pending_followups ?? 0;
   const periodRecent = summary?.recent_updates ?? 0;
+  // Use hierarchy_level for accurate manager check (Issue #13 fix — no more string matching)
+  const isManager = (profile?.hierarchy_level ?? 10) <= 3;
 
   return (
     <ScrollView
@@ -136,14 +144,75 @@ export default function ProfileScreen() {
 
       <View style={{ gap: 8, marginBottom: 16 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <StatCard label="Dialled calls" value={periodRecent || '0'} tone={theme.info} half />
-          <StatCard label="Connected calls" value="-" tone={theme.success} half />
+          {/* Real data: recent_updates = leads updated in the selected period */}
+          <StatCard
+            label={period === 'today' ? 'Updates today' : period === 'week' ? 'Updates this week' : 'Updates this month'}
+            value={periodRecent || '0'}
+            tone={theme.info}
+            half
+          />
+          <StatCard label="Pending follow-ups" value={periodPending} tone={theme.warning} half />
         </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <StatCard label="Converted" value="0" tone={theme.success} />
-          <StatCard label="Pending" value={periodPending} tone={theme.warning} />
-          <StatCard label="Avg" value={period === 'today' ? '0/hr' : '0/day'} />
-        </View>
+        {callSummary ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 8,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: theme.border,
+              backgroundColor: theme.surface,
+              padding: 12,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.text, fontSize: 13, fontWeight: '800', marginBottom: 8 }}>
+                Call Performance
+              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ color: theme.textDim, fontSize: 12 }}>Total Dials</Text>
+                <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>{callSummary.total_dials || 0}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ color: theme.textDim, fontSize: 12 }}>Connection Rate</Text>
+                <Text style={{ color: theme.success, fontSize: 12, fontWeight: '700' }}>
+                  {callSummary.total_dials > 0 ? Math.round((callSummary.connected / callSummary.total_dials) * 100) : 0}%
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: theme.textDim, fontSize: 12 }}>Talk Time</Text>
+                <Text style={{ color: theme.info, fontSize: 12, fontWeight: '700' }}>
+                  {Math.round((callSummary.total_talk_time_secs || 0) / 60)} mins
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 8,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: theme.border,
+              backgroundColor: theme.surface,
+              padding: 12,
+              alignItems: 'center',
+            }}
+          >
+            <View style={{ marginRight: 8 }}>
+              <Lock size={20} color={theme.textDim} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.text, fontSize: 13, fontWeight: '800' }}>
+                Detailed call analytics
+              </Text>
+              <Text style={{ color: theme.textMute, fontSize: 11.5, marginTop: 2 }}>
+                Make calls via the native dialer to unlock stats
+              </Text>
+            </View>
+          </View>
+        )}
       </View>
 
       <Text style={{ color: theme.textMute, fontSize: 11, fontWeight: '900', letterSpacing: 1.2, marginBottom: 8 }}>APPEARANCE</Text>

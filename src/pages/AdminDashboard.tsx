@@ -59,7 +59,7 @@ export function AdminDashboard() {
       case 'teams':
         return <TeamManagement organizationId={organizationId} isSuperAdminView={false} />;
       case 'assignmentRules':
-        return <AssignmentRulesManagement />;
+        return <AssignmentRulesManagement organizationId={organizationId} />;
       case 'webhooks':
         return <WebhookManagement />;
       default:
@@ -85,6 +85,7 @@ export function AdminDashboard() {
               return (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={`
                     flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors

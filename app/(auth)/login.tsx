@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Eye, EyeOff } from '../../mobile/components/icons';
 import { PrimaryButton } from '../../mobile/components/design';
 import { useAuth } from '../../mobile/contexts/AuthContext';
@@ -22,7 +21,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const { signIn, resetPassword } = useAuth();
   const { theme } = useMobilePreferences();
-  const router = useRouter();
+  // Note: no router here — navigation on sign-in is handled by _layout.tsx (single source of truth)
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -33,7 +32,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signIn(email.trim(), password);
-      router.replace('/(tabs)');
+      // Navigation handled by _layout.tsx useEffect reacting to user state change
     } catch (error: any) {
       Alert.alert('Login failed', error.message || 'Invalid credentials');
     } finally {

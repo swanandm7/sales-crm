@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Pill, PrimaryButton } from './design';
+import { Warning } from './icons';
 import { useMobilePreferences } from '../contexts/MobilePreferencesContext';
 import type {
   MobileFilterOption,
@@ -77,47 +78,78 @@ function DateInputRow({
   onChange: (next: { from?: string; to?: string }) => void;
 }) {
   const { theme } = useMobilePreferences();
+  const DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+  const isValidDate = (value: string) => {
+    if (!value) return true; // empty is fine
+    if (!DATE_REGEX.test(value)) return false;
+    const d = new Date(value);
+    return !isNaN(d.getTime());
+  };
+
+  const fromValid = isValidDate(from || '');
+  const toValid = isValidDate(to || '');
+  const rangeValid = !from || !to || new Date(from) <= new Date(to);
+
   return (
     <View style={{ marginBottom: 20 }}>
       <Text style={{ color: theme.textMute, fontSize: 11, fontWeight: '900', letterSpacing: 1.2, marginBottom: 10 }}>
         {title.toUpperCase()}
       </Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <TextInput
-          style={{
-            flex: 1,
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: theme.border,
-            backgroundColor: theme.surface2,
-            paddingHorizontal: 13,
-            paddingVertical: 12,
-            color: theme.text,
-          }}
-          placeholder="From YYYY-MM-DD"
-          placeholderTextColor={theme.textMute}
-          value={from || ''}
-          onChangeText={(value) => onChange({ from: value || undefined, to })}
-          autoCapitalize="none"
-        />
-        <TextInput
-          style={{
-            flex: 1,
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: theme.border,
-            backgroundColor: theme.surface2,
-            paddingHorizontal: 13,
-            paddingVertical: 12,
-            color: theme.text,
-          }}
-          placeholder="To YYYY-MM-DD"
-          placeholderTextColor={theme.textMute}
-          value={to || ''}
-          onChangeText={(value) => onChange({ from, to: value || undefined })}
-          autoCapitalize="none"
-        />
+        <View style={{ flex: 1 }}>
+          <TextInput
+            style={{
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: fromValid ? theme.border : theme.danger,
+              backgroundColor: theme.surface2,
+              paddingHorizontal: 13,
+              paddingVertical: 12,
+              color: theme.text,
+            }}
+            placeholder="From YYYY-MM-DD"
+            placeholderTextColor={theme.textMute}
+            value={from || ''}
+            onChangeText={(value) => onChange({ from: value || undefined, to })}
+            autoCapitalize="none"
+            keyboardType="numbers-and-punctuation"
+          />
+          {!fromValid && (
+            <Text style={{ color: theme.danger, fontSize: 10, fontWeight: '700', marginTop: 3 }}>Invalid date</Text>
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <TextInput
+            style={{
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: toValid ? theme.border : theme.danger,
+              backgroundColor: theme.surface2,
+              paddingHorizontal: 13,
+              paddingVertical: 12,
+              color: theme.text,
+            }}
+            placeholder="To YYYY-MM-DD"
+            placeholderTextColor={theme.textMute}
+            value={to || ''}
+            onChangeText={(value) => onChange({ from, to: value || undefined })}
+            autoCapitalize="none"
+            keyboardType="numbers-and-punctuation"
+          />
+          {!toValid && (
+            <Text style={{ color: theme.danger, fontSize: 10, fontWeight: '700', marginTop: 3 }}>Invalid date</Text>
+          )}
+        </View>
       </View>
+      {!rangeValid && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+          <Warning size={12} color={theme.warning} />
+          <Text style={{ color: theme.warning, fontSize: 10, fontWeight: '700' }}>
+            'From' date must be before 'To' date
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -240,6 +272,17 @@ export function LeadFiltersModal({
     label: status.display_name,
     color: status.color,
   }));
+
+  const DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+  const isValidDate = (v?: string) => !v || (DATE_REGEX.test(v) && !isNaN(new Date(v).getTime()));
+  
+  const areDatesValid =
+    isValidDate(draft.dateAddedFrom) &&
+    isValidDate(draft.dateAddedTo) &&
+    (!draft.dateAddedFrom || !draft.dateAddedTo || new Date(draft.dateAddedFrom) <= new Date(draft.dateAddedTo)) &&
+    isValidDate(draft.dateEditedFrom) &&
+    isValidDate(draft.dateEditedTo) &&
+    (!draft.dateEditedFrom || !draft.dateEditedTo || new Date(draft.dateEditedFrom) <= new Date(draft.dateEditedTo));
 
   const handleStatusToggle = (statusId: string) => {
     const nextStatuses = toggleInArray(draft.statuses, statusId);
@@ -397,11 +440,18 @@ export function LeadFiltersModal({
               <PrimaryButton
                 label="Apply filters"
                 theme={theme}
+                disabled={!areDatesValid}
                 onPress={() => {
+                  if (!areDatesValid) return;
                   onApply(draft);
                   onClose();
                 }}
               />
+              {!areDatesValid && (
+                <Text style={{ color: theme.danger, fontSize: 12, textAlign: 'center', marginTop: 8, fontWeight: '700' }}>
+                  Fix date errors above before applying
+                </Text>
+              )}
             </View>
           </>
         )}

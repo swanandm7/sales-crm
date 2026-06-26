@@ -19,7 +19,7 @@ interface TemplateSelectionModalProps {
   leadData: any;
   onClose: () => void;
   onConfirm: (template: Template, personalizedContent: { subject?: string; body: string }) => void;
-  title?: string;
+  title?: React.ReactNode;
   confirmButtonText?: string;
 }
 
@@ -36,6 +36,10 @@ export function TemplateSelectionModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [copied, setCopied] = useState(false);
+  const [customSubject, setCustomSubject] = useState('');
+  const [customBody, setCustomBody] = useState('');
+
+  const CUSTOM_TEMPLATE_ID = 'custom-blank-template';
 
   useEffect(() => {
     loadTemplates();
@@ -91,46 +95,77 @@ export function TemplateSelectionModal({
       setTemplates(data || []);
       if (data && data.length > 0) {
         setSelectedTemplate(data[0]);
+      } else {
+        setSelectedTemplate({
+          id: CUSTOM_TEMPLATE_ID,
+          template_name: 'Custom Blank Message',
+          template_type: type,
+          subject: '',
+          body_content: '',
+          is_active: true
+        });
       }
     }
     setLoading(false);
   }
 
   const filteredTemplates = useMemo(() => {
-    if (!searchQuery.trim()) return templates;
+    const customTemplate: Template = {
+      id: CUSTOM_TEMPLATE_ID,
+      template_name: 'Custom Blank Message',
+      template_type: type,
+      subject: '',
+      body_content: '',
+      is_active: true
+    };
+    
+    const allTemplates = [customTemplate, ...templates];
+    
+    if (!searchQuery.trim()) return allTemplates;
     const query = searchQuery.toLowerCase();
-    return templates.filter((t) =>
+    return allTemplates.filter((t) =>
       t.template_name.toLowerCase().includes(query) ||
       t.body_content.toLowerCase().includes(query) ||
       (t.subject && t.subject.toLowerCase().includes(query))
     );
-  }, [templates, searchQuery]);
+  }, [templates, searchQuery, type]);
 
-  const personalizedContent = useMemo(() => {
-    if (!selectedTemplate) return { subject: '', body: '' };
+  useEffect(() => {
+    if (!selectedTemplate) {
+      setCustomSubject('');
+      setCustomBody('');
+      return;
+    }
+
+    if (selectedTemplate.id === CUSTOM_TEMPLATE_ID) {
+      setCustomSubject('');
+      setCustomBody('');
+      return;
+    }
 
     const subject = selectedTemplate.subject
       ? replaceTemplateVariables(selectedTemplate.subject, leadData)
       : '';
     const body = replaceTemplateVariables(selectedTemplate.body_content, leadData);
 
-    return { subject, body };
+    setCustomSubject(subject);
+    setCustomBody(body);
   }, [selectedTemplate, leadData]);
 
-  const characterCount = personalizedContent.body.length;
+  const characterCount = customBody.length;
   const isWhatsAppLong = type === 'whatsapp' && characterCount > 1000;
 
   function handleConfirm() {
     if (selectedTemplate) {
-      onConfirm(selectedTemplate, personalizedContent);
+      onConfirm(selectedTemplate, { subject: customSubject, body: customBody });
     }
   }
 
   async function handleCopy() {
     const textToCopy =
       type === 'email'
-        ? `Subject: ${personalizedContent.subject}\n\n${personalizedContent.body}`
-        : personalizedContent.body;
+        ? `Subject: ${customSubject}\n\n${customBody}`
+        : customBody;
 
     const success = await copyToClipboard(textToCopy);
     if (success) {
@@ -197,7 +232,7 @@ export function TemplateSelectionModal({
                       <div className="font-medium text-slate-900 text-sm">
                         {template.template_name}
                       </div>
-                      {template.subject && (
+                      {template.subject && template.id !== CUSTOM_TEMPLATE_ID && (
                         <div className="text-xs text-slate-500 mt-1 truncate">
                           {template.subject}
                         </div>
@@ -233,14 +268,18 @@ export function TemplateSelectionModal({
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
               {selectedTemplate ? (
                 <div className="space-y-4">
-                  {type === 'email' && personalizedContent.subject && (
+                  {type === 'email' && (
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-2 uppercase">
                         Subject
                       </label>
-                      <div className="bg-white border border-slate-300 rounded-lg p-3 text-sm text-slate-800">
-                        {personalizedContent.subject}
-                      </div>
+                      <input
+                        type="text"
+                        value={customSubject}
+                        onChange={(e) => setCustomSubject(e.target.value)}
+                        placeholder="Enter subject here..."
+                        className="w-full bg-white border border-slate-300 rounded-lg p-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
                     </div>
                   )}
 
@@ -256,9 +295,12 @@ export function TemplateSelectionModal({
                         {isWhatsAppLong && ' (long message)'}
                       </span>
                     </label>
-                    <div className="bg-white border border-slate-300 rounded-lg p-4 text-sm text-slate-800 whitespace-pre-wrap min-h-[200px]">
-                      {personalizedContent.body}
-                    </div>
+                    <textarea
+                      value={customBody}
+                      onChange={(e) => setCustomBody(e.target.value)}
+                      placeholder="Write your message here..."
+                      className="w-full bg-white border border-slate-300 rounded-lg p-4 text-sm text-slate-800 whitespace-pre-wrap min-h-[200px] outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    />
                   </div>
                 </div>
               ) : (

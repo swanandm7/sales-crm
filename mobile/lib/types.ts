@@ -21,6 +21,10 @@ export type MobileQueueLead = {
   followup_status: string | null;
   is_overdue: boolean;
   last_updated: string | null;
+  total_dials?: number;
+  connected_calls?: number;
+  last_called_at?: string | null;
+  last_call_outcome?: string | null;
 };
 
 export type StatusOption = {
@@ -79,21 +83,23 @@ export type MobileDashboardSummary = {
   recent_updates: number;
 };
 
-export type QuickOutcomeKey =
-  | 'no_answer'
+export type NativeCallOutcome =
   | 'connected'
-  | 'callback'
-  | 'wrong_number'
-  | 'converted'
-  | 'junk';
+  | 'not_connected_busy'
+  | 'not_connected_no_answer'
+  | 'not_connected_switched_off'
+  | 'callback_requested'
+  | 'wrong_number';
 
 export type QuickUpdateInput = {
   leadId: string;
-  disposition: QuickOutcomeKey | string;
+  disposition: NativeCallOutcome | string;
   statusId?: string | null;
   subStatusId?: string | null;
   note?: string;
   nextFollowupAt?: string | null;
+  talkTimeSecs?: number | null;
+  calledAt?: string | null;
 };
 
 export type FollowupItem = {

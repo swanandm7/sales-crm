@@ -28,6 +28,7 @@ interface AddRuleModalProps {
   onClose: () => void;
   onAdd: (rule: any) => void;
   editingRule?: AssignmentRule | null;
+  organizationId?: string | null;
 }
 
 type CriteriaType = 'includes' | 'any';
@@ -43,7 +44,7 @@ interface LeadSource {
   name: string;
 }
 
-export function AddRuleModal({ isOpen, onClose, onAdd, editingRule }: AddRuleModalProps) {
+export function AddRuleModal({ isOpen, onClose, onAdd, editingRule, organizationId }: AddRuleModalProps) {
   const [ruleName, setRuleName] = useState('');
   const [channelType, setChannelType] = useState<CriteriaType>('includes');
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
@@ -102,10 +103,16 @@ export function AddRuleModal({ isOpen, onClose, onAdd, editingRule }: AddRuleMod
 
   const fetchCounselors = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('profiles')
         .select('id, full_name, email')
         .order('full_name');
+
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setCounselors(data || []);
@@ -116,11 +123,17 @@ export function AddRuleModal({ isOpen, onClose, onAdd, editingRule }: AddRuleMod
 
   const fetchSources = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('lead_sources')
         .select('id, name')
         .eq('is_active', true)
         .order('name');
+
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setSources(data || []);

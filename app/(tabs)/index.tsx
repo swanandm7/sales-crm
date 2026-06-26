@@ -107,9 +107,9 @@ export default function DashboardScreen() {
     () => (preferences.dashboardLayout === 'summary' ? queue.slice(0, 3) : queue.slice(0, 5)),
     [preferences.dashboardLayout, queue]
   );
-  const isLeadManager =
-    (profile?.role_name || '').toLowerCase().includes('lead') ||
-    (profile?.role_name || '').toLowerCase().includes('admin');
+  // Use hierarchy_level for accurate manager detection (Issue #13 fix — no string matching)
+  // Level 1 = super admin, 2 = admin, 3 = lead manager, 4+ = rep
+  const isLeadManager = (profile?.hierarchy_level ?? 10) <= 3;
 
   const loadDashboard = async (showRefreshSpinner = false) => {
     if (!profile?.organization_id || !user?.id) return;
@@ -119,9 +119,9 @@ export default function DashboardScreen() {
 
       const [summaryData, queueData, pendingUpdates, flushedCount, teamData] = await Promise.all([
         getDashboardSummary(profile.organization_id, user.id),
-        getRepQueue(user.id, 25),
+        getRepQueue(user.id, 100), // Issue #10 fix: fetch more leads so queue isn't truncated
         listPendingQuickUpdates(user.id),
-        flushPendingQuickUpdates(user.id).catch(() => 0),
+        flushPendingQuickUpdates(user.id).then(r => r.flushedCount).catch(() => 0),
         isLeadManager ? getTeamSummary().catch(() => null) : Promise.resolve(null),
       ]);
 
@@ -160,7 +160,8 @@ export default function DashboardScreen() {
       Alert.alert('No mobile number', 'This lead does not have a mobile number yet.');
       return;
     }
-    await Linking.openURL(`tel:${lead.mobile_number}`);
+    const targetId = lead.lead_id || (lead as any).id;
+    router.push(`/lead/${targetId}?autoCall=true`);
   };
 
   if (loading || !dashboardSummary) {
@@ -240,7 +241,7 @@ export default function DashboardScreen() {
           <Text style={{ color: theme.textDim, marginTop: 4 }}>{formatLeadSubtitle(nextLead) || nextLead.mobile_number || 'Ready to call'}</Text>
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
             <PrimaryButton label="Call now" theme={theme} onPress={() => handleCall(nextLead)} icon={<Phone size={16} color={theme.onAccent} />} style={{ flex: 1 }} />
-            <PrimaryButton label="Open" theme={theme} tone="soft" onPress={() => router.push(`/lead/${nextLead.lead_id}`)} icon={<ArrowRight size={16} color={theme.text} />} />
+            <PrimaryButton label="Open" theme={theme} tone="soft" onPress={() => router.push(`/lead/${nextLead.lead_id || (nextLead as any).id}`)} icon={<ArrowRight size={16} color={theme.text} />} />
           </View>
         </Card>
       ) : null}
@@ -321,18 +322,18 @@ export default function DashboardScreen() {
 
       <Card theme={theme} style={{ marginBottom: 14 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {[
-            ['Next lead', nextLead ? () => router.push(`/lead/${nextLead.lead_id}`) : () => router.push('/(tabs)/leads'), true],
-            ['Leads', () => router.push('/(tabs)/leads'), false],
-            ['Follow-up', () => router.push('/(tabs)/followups'), false],
-            ['Recent', () => router.push('/(tabs)/leads'), false],
-          ].map(([label, onPress, accent]) => (
+          {([
+            { label: 'Next Lead', emoji: '⚡', onPress: nextLead ? () => router.push(`/lead/${nextLead.lead_id || (nextLead as any).id}`) : () => router.push('/(tabs)/leads'), accent: true },
+            { label: 'All Leads', emoji: '👥', onPress: () => router.push('/(tabs)/leads'), accent: false },
+            { label: 'Follow-ups', emoji: '⏰', onPress: () => router.push('/(tabs)/followups'), accent: false },
+            { label: 'Recent', emoji: '🕐', onPress: () => router.push('/(tabs)/leads'), accent: false },
+          ] as const).map(({ label, emoji, onPress, accent }) => (
             <TouchableOpacity
-              key={String(label)}
-              onPress={onPress as () => void}
+              key={label}
+              onPress={onPress}
               style={{
                 flex: 1,
-                minHeight: 70,
+                minHeight: 76,
                 borderRadius: 14,
                 borderWidth: 1,
                 borderColor: accent ? theme.accentRing : theme.border,
@@ -340,10 +341,12 @@ export default function DashboardScreen() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 paddingHorizontal: 4,
+                gap: 6,
               }}
             >
-              <Text style={{ color: accent ? theme.accent : theme.text, fontSize: 11, fontWeight: '900', textAlign: 'center' }}>
-                {String(label)}
+              <Text style={{ fontSize: 22 }}>{emoji}</Text>
+              <Text style={{ color: accent ? theme.accent : theme.text, fontSize: 10, fontWeight: '900', textAlign: 'center' }}>
+                {label}
               </Text>
             </TouchableOpacity>
           ))}
@@ -363,10 +366,10 @@ export default function DashboardScreen() {
         {actionNeededLeads.length > 0 ? (
           actionNeededLeads.map((lead) => (
             <LeadMiniCard
-              key={lead.lead_id}
+              key={lead.lead_id || (lead as any).id}
               lead={lead}
               theme={theme}
-              onPress={() => router.push(`/lead/${lead.lead_id}`)}
+              onPress={() => router.push(`/lead/${lead.lead_id || (lead as any).id}`)}
             />
           ))
         ) : (
@@ -388,7 +391,7 @@ export default function DashboardScreen() {
           </View>
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
             <PrimaryButton label="Call" theme={theme} onPress={() => handleCall(nextLead)} icon={<Phone size={16} color={theme.onAccent} />} style={{ flex: 1 }} />
-            <PrimaryButton label="Open" theme={theme} tone="soft" onPress={() => router.push(`/lead/${nextLead.lead_id}`)} style={{ flex: 1 }} />
+            <PrimaryButton label="Open" theme={theme} tone="soft" onPress={() => router.push(`/lead/${nextLead.lead_id || (nextLead as any).id}`)} style={{ flex: 1 }} />
           </View>
         </Card>
       ) : null}

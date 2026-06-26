@@ -150,11 +150,25 @@ export function MobilePreferencesProvider({ children }: { children: React.ReactN
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
         if (!raw) return;
-        const parsed = JSON.parse(raw);
-        setPreferences({
-          ...DEFAULT_MOBILE_PREFERENCES,
-          ...parsed,
-        });
+        try {
+          const parsed = JSON.parse(raw);
+          // Issue #18 fix: Validate each key against allowed values before applying
+          const VALID_THEMES: MobileThemeKey[] = ['dark-orange', 'navy-orange', 'dark-green'];
+          const VALID_LAYOUTS: DashboardLayoutKey[] = ['summary', 'hybrid', 'queue'];
+          const VALID_DENSITIES: LeadCardDensityKey[] = ['comfortable', 'compact'];
+          const VALID_NAV_STYLES: BottomNavStyleKey[] = ['labels', 'icons', 'pill'];
+
+          const validated: MobilePreferences = {
+            theme: VALID_THEMES.includes(parsed.theme) ? parsed.theme : DEFAULT_MOBILE_PREFERENCES.theme,
+            dashboardLayout: VALID_LAYOUTS.includes(parsed.dashboardLayout) ? parsed.dashboardLayout : DEFAULT_MOBILE_PREFERENCES.dashboardLayout,
+            leadCardDensity: VALID_DENSITIES.includes(parsed.leadCardDensity) ? parsed.leadCardDensity : DEFAULT_MOBILE_PREFERENCES.leadCardDensity,
+            bottomNavStyle: VALID_NAV_STYLES.includes(parsed.bottomNavStyle) ? parsed.bottomNavStyle : DEFAULT_MOBILE_PREFERENCES.bottomNavStyle,
+          };
+          setPreferences(validated);
+        } catch {
+          // Corrupted storage — fall back to defaults silently
+          AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+        }
       })
       .catch(() => {});
   }, []);

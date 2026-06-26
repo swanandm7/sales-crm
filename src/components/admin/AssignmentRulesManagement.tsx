@@ -28,7 +28,11 @@ interface AssignmentRule {
   lastAssignmentDate?: string;
 }
 
-export function AssignmentRulesManagement() {
+interface AssignmentRulesManagementProps {
+  organizationId?: string | null;
+}
+
+export function AssignmentRulesManagement({ organizationId }: AssignmentRulesManagementProps = {}) {
   const { showError } = useToast();
   const [rules, setRules] = useState<AssignmentRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -486,6 +490,7 @@ export function AssignmentRulesManagement() {
 
       <AddRuleModal
         isOpen={showAddRuleModal || editingRule !== null}
+        organizationId={organizationId}
         onClose={() => {
           setShowAddRuleModal(false);
           setEditingRule(null);

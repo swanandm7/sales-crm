@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Text,
   TouchableOpacity,
   View,
@@ -341,4 +342,89 @@ export function keyValueTextStyle(theme: MobileTheme): { label: TextStyle; value
     label: { width: 118, color: theme.textMute, fontSize: 12, fontWeight: '700' },
     value: { flex: 1, color: theme.text, fontSize: 13, fontWeight: '700' },
   };
+}
+
+// Skeleton loading pulse component (Issue #15 fix)
+export function SkeletonBox({
+  width,
+  height = 16,
+  borderRadius = 8,
+  style,
+}: {
+  width: number | string;
+  height?: number;
+  borderRadius?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const opacity = React.useRef(new Animated.Value(0.3)).current;
+
+  React.useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width,
+          height,
+          borderRadius,
+          backgroundColor: '#2a2a2f',
+          opacity,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+export function LeadDetailSkeleton({ theme }: { theme: MobileTheme }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      {/* Header skeleton */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 52, paddingBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <SkeletonBox width={40} height={40} borderRadius={20} />
+        <SkeletonBox width={160} height={16} />
+        <SkeletonBox width={40} height={40} borderRadius={20} />
+      </View>
+      {/* Lead name skeleton */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 8, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+        <SkeletonBox width={56} height={56} borderRadius={28} />
+        <View style={{ gap: 8 }}>
+          <SkeletonBox width={180} height={20} />
+          <SkeletonBox width={120} height={13} />
+        </View>
+      </View>
+      {/* Status row skeleton */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+        <SkeletonBox width="100%" height={62} borderRadius={14} />
+      </View>
+      {/* Action tiles skeleton */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, flexDirection: 'row', gap: 10 }}>
+        <SkeletonBox width="31%" height={68} borderRadius={16} />
+        <SkeletonBox width="31%" height={68} borderRadius={16} />
+        <SkeletonBox width="31%" height={68} borderRadius={16} />
+      </View>
+      {/* Fields skeleton */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
+        <SkeletonBox width="100%" height={110} borderRadius={14} />
+      </View>
+      <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
+        <SkeletonBox width={120} height={12} style={{ marginBottom: 10 }} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <SkeletonBox width="48%" height={52} borderRadius={10} />
+          <SkeletonBox width="48%" height={52} borderRadius={10} />
+          <SkeletonBox width="48%" height={52} borderRadius={10} />
+          <SkeletonBox width="48%" height={52} borderRadius={10} />
+        </View>
+      </View>
+    </View>
+  );
 }

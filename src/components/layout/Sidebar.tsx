@@ -90,6 +90,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
             return (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => onSectionChange(item.id)}
                 data-testid={`nav-${item.id}`}
                 className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${

@@ -43,6 +43,7 @@ export function SuperAdminDashboard() {
               return (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={`
                     flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors

@@ -118,6 +118,7 @@ export function Header({ onAddLead, searchQuery, onSearchChange, onSearch, onCle
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={onClearSearch}
                 data-testid="header-search-clear"
                 className="p-1 hover:bg-slate-500 rounded transition"
@@ -127,6 +128,7 @@ export function Header({ onAddLead, searchQuery, onSearchChange, onSearch, onCle
               </button>
             )}
             <button
+              type="button"
               onClick={onSearch}
               data-testid="header-search-submit"
               className="p-1 hover:bg-slate-500 rounded transition"
@@ -147,6 +149,7 @@ export function Header({ onAddLead, searchQuery, onSearchChange, onSearch, onCle
         )}
 
         <button
+          type="button"
           onClick={onAddLead}
           data-testid="header-add-lead-button"
           className="p-2 hover:bg-slate-600 rounded-lg transition"
@@ -164,6 +167,7 @@ export function Header({ onAddLead, searchQuery, onSearchChange, onSearch, onCle
 
         <div className="relative" ref={userMenuRef}>
           <button
+            type="button"
             onClick={() => setShowUserMenu(!showUserMenu)}
             data-testid="header-user-menu-toggle"
             className="flex items-center gap-2 p-2 hover:bg-slate-600 rounded-lg transition"
@@ -181,6 +185,7 @@ export function Header({ onAddLead, searchQuery, onSearchChange, onSearch, onCle
                 <p className="text-xs text-orange-600 mt-1">{roleName}</p>
               </div>
               <button
+                type="button"
                 onClick={async () => {
                   setShowUserMenu(false);
                   await endSession();

@@ -107,10 +107,29 @@ export function InvitationManagement() {
     try {
       setSending(true);
 
+      const emailToInvite = formData.email.toLowerCase().trim();
+
+      // Check if user already exists in the system
+      const { data: existingUser, error: checkError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', emailToInvite)
+        .maybeSingle();
+
+      if (checkError) {
+        throw checkError;
+      }
+
+      if (existingUser) {
+        showError('A user with this email already exists');
+        setSending(false);
+        return;
+      }
+
       const { error: inviteError } = await supabase
         .from('invitations')
         .insert({
-          email: formData.email.toLowerCase().trim(),
+          email: emailToInvite,
           role_id: formData.role_id,
           invited_by: userProfile?.id,
           organization_id: userProfile?.organization_id,
@@ -150,7 +169,7 @@ export function InvitationManagement() {
 
       const { data: currentInvite } = await supabase
         .from('invitations')
-        .select('resend_count')
+        .select('resend_count, email, token, organization_id')
         .eq('id', invitationId)
         .single();
 
@@ -166,12 +185,34 @@ export function InvitationManagement() {
 
       if (error) throw error;
 
+      const invitationLink = buildInvitationLink(currentInvite.token);
+
+      const { error: emailError } = await supabase.from('email_queue').insert({
+        organization_id: currentInvite.organization_id || null,
+        to_email: currentInvite.email,
+        subject: 'Reminder: You have been invited to join the team',
+        body_html: `
+          <p>Hello,</p>
+          <p>This is a reminder that you have been invited to join the organization. Click the link below to accept your invitation and set up your account:</p>
+          <p><a href="${invitationLink}">${invitationLink}</a></p>
+          <p>This invitation will expire in 48 hours.</p>
+          <p>Best regards,<br/>The Team</p>
+        `,
+        body_text: `This is a reminder that you have been invited to join the organization. Visit this link to accept: ${invitationLink}\n\nThis invitation will expire in 48 hours.`,
+        priority: 8,
+      });
+
+      if (emailError) {
+        throw new Error('Failed to queue reminder email: ' + emailError.message);
+      }
+
       await supabase.from('audit_log').insert({
         actor_user_id: userProfile?.id,
         action_type: 'invite_resent',
         metadata: { invitation_id: invitationId },
       });
 
+      showSuccess(`Invitation resent to ${currentInvite.email}`);
       loadData();
     } catch (error) {
       console.error('Error resending invitation:', error);
