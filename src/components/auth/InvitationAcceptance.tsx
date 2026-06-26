@@ -164,39 +164,10 @@ export function InvitationAcceptance() {
       // a small buffer for any network/replication lag.
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Update the profile with the correct invitation org, role, and status
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          organization_id: invitation.organization_id,
-          role_id: invitation.role_id,
-          mobile_number: mobileNumber || null,
-          status: 'active'
-        })
-        .eq('id', authData.user.id);
-
-      if (profileError) {
-        console.error('Profile update error:', profileError);
-        throw new Error('Failed to update profile: ' + profileError.message);
-      }
-
-      // Upsert organization membership with the invited org and role
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .upsert({
-          organization_id: invitation.organization_id,
-          profile_id: authData.user.id,
-          role_id: invitation.role_id,
-          joined_at: new Date().toISOString(),
-        }, {
-          onConflict: 'profile_id'
-        });
-
-      if (memberError) {
-        console.error('Organization member error:', memberError);
-        throw new Error('Failed to add to organization: ' + memberError.message);
-      }
-
+      // The handle_new_user() database trigger automatically creates the profile
+      // and organization_member records with the correct role from the invitation.
+      // We only need to mark the invitation as accepted.
+      
       // Mark invitation as accepted
       const { error: inviteError } = await supabase
         .from('invitations')
