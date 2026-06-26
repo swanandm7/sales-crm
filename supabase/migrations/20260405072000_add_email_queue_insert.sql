@@ -1,6 +1,6 @@
 -- Add INSERT policy for email_queue so the frontend can send emails via Resend
 
-CREATE POLICY "Users can insert into email queue for their organization"
+DROP POLICY IF EXISTS "Users can insert into email queue for their organization" ON public.email_queue; CREATE POLICY "Users can insert into email queue for their organization"
   ON public.email_queue FOR INSERT
   TO authenticated
   WITH CHECK (
