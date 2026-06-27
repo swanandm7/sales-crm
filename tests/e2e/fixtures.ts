@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/rules-of-hooks */
+
 import { expect, test as base, type Page } from '@playwright/test';
 
 export type UserRole = 'user' | 'admin' | 'super_admin';

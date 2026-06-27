@@ -15,7 +15,7 @@ interface AuthContextType {
   organizationMember: OrganizationMember | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | Error | null }>;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ data?: { user: User | null } | null; error: AuthError | Error | null }>;
+  signUp: (email: string, password: string, firstName: string, lastName: string, mobileNumber?: string) => Promise<{ data?: { user: User | null } | null; error: AuthError | Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | Error | null }>;
@@ -175,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string, mobileNumber?: string) => {
    
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -184,6 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data: {
           first_name: firstName,
           last_name: lastName,
+          mobile_number: mobileNumber,
         },
       },
     });

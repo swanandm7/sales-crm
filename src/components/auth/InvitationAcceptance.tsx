@@ -130,7 +130,8 @@ export function InvitationAcceptance() {
         invitation.email,
         password,
         firstName,
-        lastName
+        lastName,
+        mobileNumber
       );
 
       if (signUpError) {

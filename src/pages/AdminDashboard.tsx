@@ -27,17 +27,7 @@ export function AdminDashboard() {
   const organizationId = profile?.organization_id || organization?.id || null;
   const organizationName = organization?.name || 'Unknown Organization';
 
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full bg-slate-50 p-6">
-        <ShieldAlert className="w-16 h-16 text-red-500 mb-4" />
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Access Denied</h2>
-        <p className="text-slate-600 text-center max-w-md">
-          You do not have permission to access the Admin Dashboard. Please contact your system administrator if you believe this is an error.
-        </p>
-      </div>
-    );
-  }
+
 
   const tabs = [
     { id: 'users' as TabType, label: 'User Management', icon: Users },
@@ -66,6 +56,18 @@ export function AdminDashboard() {
         return null;
     }
   }, [activeTab, organizationId]);
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full bg-slate-50 p-6">
+        <ShieldAlert className="w-16 h-16 text-red-500 mb-4" />
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Access Denied</h2>
+        <p className="text-slate-600 text-center max-w-md">
+          You do not have permission to access the Admin Dashboard. Please contact your system administrator if you believe this is an error.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
